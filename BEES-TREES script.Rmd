@@ -1,0 +1,197 @@
+Install Packages
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(ncdf4)
+library(dplyr)
+library(vegan)
+theme_set(theme_classic())
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(lubridate)
+```
+world data
+```{r, fig.width=100,fig.height=100}
+
+library("rnaturalearth")
+library("rnaturalearthdata")
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+class(world)
+
+ggplot(data=world) + geom_sf(data=world)+coord_sf(xlim=c(110,155),ylim=c(-45,-10), expand=FALSE) + geom_point(data=ALA_data, aes(x=Longitude, y=Latitude, color=Species, size=2)) +theme(legend.position = "none")
+
+```
+
+
+####  Scratchpad
+```{r}
+world<-ne_countries(scale="medium", returnclass="sf")
+
+ggplot(data=crap, aes(x=longitude, y=latitude))+geom_point()
+
+n
+plot(df_day$Tair, df_day$GPP)
+
+
+preds = predict(fit, newdata = list(x), se = TRUE)
+
+nc_open("data/sites/AU-TTE_2013-2017_OzFlux_met.nc")
+names(nc$var)
+
+
+# Compute error bands (2*SE)
+se_bands = cbind("upper" = preds$fit+2*preds$se.fit, 
+                 "lower" = preds$fit-2*preds$se.fit)
+
+ggplot() + geom_sf(data=world) + geom_point(data=Sp_Rng, aes(x=longitude, y=latitude))
+```
+
+
+Data Import
+```{r}
+ncFnames <- list.files('data/sites/', pattern="*.nc", full.names=TRUE)
+ncFnames
+
+for(fname in ncFnames){
+nc <- nc_open(fname)
+t <- ncvar_get(nc, "time")
+time_origin <- strsplit(ncatt_get(nc, "time")$units, "days since ")[[1]][2]
+date <- as.POSIXct(t * 24*60*60,  origin=time_origin, tz="GMT")
+
+Tair <- ncvar_get(nc, "Ta")
+GPP <- ncvar_get(nc, "GPP_LL")
+SW <-  ncvar_get(nc, "Fsd")
+
+i <- data.frame(date, GPP, Tair, SW)
+colnames(fname)<- c("date", "GPP", "Tair", "SW")
+df$year <- year(date)
+df$month <- month(date)
+df$day <- yday(date)
+df$hour <- hour(date)
+
+df[i]}
+```
+attempt 2
+```{r}
+# Declare data frame
+# Open all files
+# Loop over files
+df=NULL
+files= list.files('data/sites',pattern='*.nc',full.names=TRUE)
+for(i in seq_along(files)) {
+nc = nc_open(files[i])
+
+# Read the whole nc file and read the length of the varying dimension (here, the 3rd dimension, specifically time)
+t <- ncvar_get(nc, "time")
+time_origin <- strsplit(ncatt_get(nc, "time")$units, "days since ")[[1]][2]
+date <- as.POSIXct(t * 24*60*60,  origin=time_origin, tz="GMT")
+Tair <- ncvar_get(nc, "Ta")
+GPP <- ncvar_get(nc, "GPP_LL")
+SW <-  ncvar_get(nc, "Fsd")
+
+df <- data.frame(date, GPP, Tair, SW)
+colnames(fname)<- c("date", "GPP", "Tair", "SW")
+
+# Add the values from each file to a single data.frame
+rbind(df,data.frame(lw))->df
+}
+
+
+
+
+#ala data
+ala_temp <- read.csv("E\Data\ALA_w_temp.csv")
+ala_s <- ala_temp %>%
+  select('Species','Latitude','Longitude','Temperature...annual.range..Bio07.') %>%
+  dplyr::rename(
+    'species' = 'Species' ,
+    'latitude' = 'Latitude' ,
+    'longitude' = 'Longitude', 
+    'temp_range' = 'Temperature...annual.range..Bio07.' ,
+  )
+
+
+
+
+```
+
+
+
+
+
+
+
+Convert Data into Usable Format
+```{r}
+
+# Convert GPP units
+UMOL_TO_MOL = 0.000001
+MOL_C_TO_GRAMS_C = 12.
+SEC_2_HR = 3600.
+conv <- UMOL_TO_MOL * MOL_C_TO_GRAMS_C * SEC_2_HR # Note this is only for Tumba, others are 30 min
+
+df_day <- df %>%
+  mutate(day=as.Date(df$date, format="%Y-%m-%d")) %>%
+  group_by(day) %>%               # group by the day column
+  summarise(GPP=sum(GPP * conv), Tair=max(Tair))   # calculate the SUM of all the photosynthesis
+                                  # that occurred on each day
+                                  # NB unit conversion
+
+
+
+
+
+
+```
+
+
+
+Temp range for Euc Species
+  worldclim
+  butt data
+```{r}
+
+```
+
+physiological leaf tOpt
+```{r}
+Kumara_DB<-read.csv("crap.csv",header=T)
+summary(Kumara_DB)
+variable.names(Kumara_DB)
+Sp_Rng <- Kumara_DB %>%
+  group_by(species) %>%
+  select(species, latitude, longitude)%>%
+  filter(latitude < -10)%>%
+  filter(longitude > 110)
+
+summary(Sp_Rng)
+variable.names(Sp_Rng)
+
+
+```
+field data
+```{r}
+ALA_data_raw <- read.csv("data/BEES-TREES_ALA_data/BEES-TREES_ALA_data.csv",header=TRUE)
+ALA_data_ref <- ALA_data %>%
+  select('Species', 'Latitude', 'Longitude')
+ala_subs <- ALA_data_ref[sample(NROW(ALA_data_ref), 49999),]
+
+#sp range
+temp <- ALA_data %>%
+  group_by(Species)%>%
+  range(Latitude)
+
+
+```
+
+field tOpt
+```{r}
+
+```
+
+
+
+
+
+combine approaches
