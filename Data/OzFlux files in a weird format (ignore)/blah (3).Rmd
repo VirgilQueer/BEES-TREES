@@ -1,0 +1,216 @@
+---
+title: "Topt"
+output: html_notebook
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(ncdf4)
+library(lubridate)
+library(tidyverse)
+```
+
+
+```{r}
+
+list.files(".")
+
+"AU-ASM_2011-2017_OzFlux_Flux.nc" "AU-ASM_2011-2017_OzFlux_Met.nc" 
+names(nc$var)
+names(nc_open("AU-ASM_2011-2017_OzFlux_Met.nc")$var)
+```
+
+
+```{r}
+
+#fname <- "Tumbarumba_L6.nc"
+fname <- "AU-ASM_2011-2017_OzFlux_Met.nc"
+
+nc <- nc_open(fname)
+t <- ncvar_get(nc, "time")
+time_origin <- strsplit(ncatt_get(nc, "time")$units, "days since ")[[1]][2]
+date <- as.POSIXct(t * 24*60*60,  origin=time_origin, tz="GMT")
+
+Tair <- ncvar_get(nc, "Tair")
+#GPP <- ncvar_get(nc, "GPP")
+SW <-  ncvar_get(nc, "SWdown")
+
+df <- data.frame(date, Tair, SW)# GPP, Tair, SW)
+colnames(df)<- c("date","Tair", "SW") #"GPP", "Tair", "SW")
+df$year <- year(date)
+df$month <- month(date)
+df$day <- yday(date)
+df$hour <- hour(date)
+
+nc_close
+nc <- nc_open("AU-ASM_2011-2017_OzFlux_Flux.nc")
+GPP <- ncvar_get(nc, "GPP")
+df <- df %>%
+  mutate(GPP)
+
+df
+```
+
+
+
+```{r}
+
+# Convert GPP units
+UMOL_TO_MOL = 0.000001
+MOL_C_TO_GRAMS_C = 12.
+SEC_2_HR = 3600.
+conv <- UMOL_TO_MOL * MOL_C_TO_GRAMS_C * SEC_2_HR # Note this is only for Tumba, others are 30 min
+
+df_day <- df %>%
+  mutate(day=as.Date(df$date, format="%Y-%m-%d")) %>%
+  group_by(day) %>%               # group by the day column
+  summarise(GPP=sum(GPP * conv), Tair=max(Tair))   # calculate the SUM of all the photosynthesis
+                                  # that occurred on each day
+                                  # NB unit conversion
+```
+
+
+
+
+```{r}
+plot(df_day$Tair, df_day$GPP)
+```
+
+
+```{r}
+qt <- quantile(df_day$GPP, probs=0.95)
+
+#Find days where GPP above 95th percentile
+above <- which(df_day$GPP > qt)
+df_out <- data.frame(day=df_day$day[above], gpp=df_day$GPP[above],
+                     tair=df_day$Tair[above])
+df_out
+```
+
+
+```{r}
+# Figure out opts for all years
+print( c(mean(df_out$gpp), mean(df_out$tair), mean(df_day$Tair), sd(df_out$gpp), sd(df_out$tair), count) )
+```
+```{r}
+# difference in MAT and Topt
+print( c(mean(df_out$tair), mean(df_day$Tair)) )
+```
+```{r}
+plot(df_day$Tair, df_day$GPP)
+```
+
+```{r}
+
+# Figure out opts for each year
+df_year <- df_out %>%
+  mutate(year=format(df_out$day, format="%Y")) %>% #convert date to years
+  group_by(year) %>%               # group by the year column
+  summarise(gpp_mean=mean(gpp), gpp_sd=sd(gpp), tair_mean=mean(tair), tair_sd=sd(tair))
+df_year
+```
+
+
+```{r}
+plot(df_year$year, df_year$tair_mean)
+```
+```{r}
+
+x <- df_day$Tair
+y <- df_day$GPP
+#fit <- lm(y ~ poly(x,2, raw=T))
+fit <- lm(y ~ x + I(x^2))
+summary(fit)
+
+```
+```{r}
+
+preds = predict(fit, newdata = list(x), se = TRUE)
+
+# Compute error bands (2*SE)
+se_bands = cbind("upper" = preds$fit+2*preds$se.fit, 
+                 "lower" = preds$fit-2*preds$se.fit)
+
+ggplot() +
+  geom_point(data = df_day, aes(x = Tair, y = GPP)) +
+  geom_line(aes(x = df_day$Tair, y = preds$fit), color = "#0000FF") +
+  geom_ribbon(aes(x = df_day$Tair, 
+                  ymin = se_bands[,"lower"], 
+                  ymax = se_bands[,"upper"]), 
+              alpha = 0.3) 
+  
+  
+```
+
+```{r}
+# Get Topt (max of curve)
+Topt_max <- df_day$Tair[which.max(preds$fit)]
+Topt_max
+```
+
+
+
+
+```{r}
+fit1 <- lm(y~x)
+fit2 <- lm(y~poly(x,2,raw=T))
+fit3 <- lm(y~poly(x,3,raw=T))
+print(anova(fit1,fit2,fit3))
+```
+
+```{r}
+above <- which(df_day$Tair > 30)
+df_above <- data.frame(day=df_day$day[above], gpp=df_day$GPP[above],
+                     tair=df_day$Tair[above])
+```
+
+
+```{r}
+gpp_max <- max(df_above$gpp)
+plot(df_above$tair, df_above$gpp/gpp_max)
+
+
+
+```
+
+```{r}
+df_max <- df_above %>% 
+           mutate( x_bins = cut( tair, breaks = seq(30, 42.5, by=0.5) )) %>% 
+           group_by(x_bins)  %>% 
+           summarise(max_gpp = max(gpp))
+```
+
+
+```{r}
+xrange <- seq(30.25, by=0.5, length.out=length(df_max$max_gpp))
+plot(xrange, df_max$max_gpp/gpp_max)
+```
+
+
+```{r}
+library("nls.multstart")
+x <- seq(30,42,length.out = 100)
+eps <- rnorm(100, mean=0, sd=0.1)
+y <- SSfpl(x, A=1, B=0.4, xmid=37, scal=1.5)+eps
+plot(y~x); abline(v=37)
+fit <- nls.multstart::nls_multstart(
+  y~SSfpl(input = x, A = A, B=B, xmid = xmid, scal = scal),
+          start_lower=c(A=0.5,B=0,xmid=30,scal=0.5),
+          start_upper=c(A=1,B=0.5,xmid=42,scal=10),
+  iter=100, supp_errors = 'Y')
+summary(fit)
+plot(y~x)
+points(predict(fit)~x,col='navy',pch=20)
+abline(v=coef(fit)['xmid'],col='red',lwd=2)
+```
+
+```{r}
+T50 <- coef(fit)['xmid']
+T50
+```
+```{r}
+T_safety_margin <- T50 - Topt_max
+T_safety_margin
+```
+

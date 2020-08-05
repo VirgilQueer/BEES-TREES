@@ -1,27 +1,41 @@
 Install Packages
 ```{r}
+install.packages('ggpmisc')
+library(ggplot2)
+library(dplyr)
+library(ncdf4)
+library(lubridate)
 library(tidyverse)
+library(raster)
+library(sp)
+library(tidyverse)
+library(dplyr)
 library(ggplot2)
 library(ncdf4)
-library(dplyr)
 library(vegan)
-theme_set(theme_classic())
+
 library(rnaturalearth)
 library(rnaturalearthdata)
 library(lubridate)
+#library(raster)
+library(sp)
+library(data.table)
+theme_set(theme_classic())
 ```
+
+
 world data
-```{r, fig.width=100,fig.height=100}
+```{r, fig.width=20,fig.height=20}
 
 library("rnaturalearth")
 library("rnaturalearthdata")
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
-class(world)
 
-ggplot(data=world) + geom_sf(data=world)+coord_sf(xlim=c(110,155),ylim=c(-45,-10), expand=FALSE) + geom_point(data=ALA_data, aes(x=Longitude, y=Latitude, color=Species, size=2)) +theme(legend.position = "none")
 
 ```
+
+
 
 
 ####  Scratchpad
@@ -31,79 +45,85 @@ world<-ne_countries(scale="medium", returnclass="sf")
 ggplot(data=crap, aes(x=longitude, y=latitude))+geom_point()
 
 n
-plot(df_day$Tair, df_day$GPP)
+plot(OF_dat$Tair, OF_dat$GPP)
 
 
 preds = predict(fit, newdata = list(x), se = TRUE)
 
-nc_open("data/sites/AU-TTE_2013-2017_OzFlux_met.nc")
+nc_open()
 names(nc$var)
-
+nc_close("./Data/OzFlux_dat/DalyUncleared_2012_L3.nc")
 
 # Compute error bands (2*SE)
 se_bands = cbind("upper" = preds$fit+2*preds$se.fit, 
                  "lower" = preds$fit-2*preds$se.fit)
-
 ggplot() + geom_sf(data=world) + geom_point(data=Sp_Rng, aes(x=longitude, y=latitude))
-```
 
 
-Data Import
-```{r}
-ncFnames <- list.files('data/sites/', pattern="*.nc", full.names=TRUE)
+names(nc$var)
+
+selec
+
+
+##
+## ignore
+##```{r}
+list.files(out_dir)
+
+out_fname
+site_name
+
+#create directory for processed netCDF files
+out_dir <- "/Data/processed"
+if (!dir.exists(file.path(out_dir))) {
+  dir.create(file.path(out_dir))
+}
+
+#list all files in directory
+ncFnames <- list.files("Data/OzFlux_dat/",pattern="*Flux.nc", full.names=TRUE)
 ncFnames
-
+#extract data from netCDF files
 for(fname in ncFnames){
-nc <- nc_open(fname)
+nc <- nc_open(fname) #"Data/OzFlux_dat/AU-Cpr_2011-2017_OzFlux_Flux.nc")
+site_name <- fname #substr(fname, 0, 7)
+
+
 t <- ncvar_get(nc, "time")
 time_origin <- strsplit(ncatt_get(nc, "time")$units, "days since ")[[1]][2]
 date <- as.POSIXct(t * 24*60*60,  origin=time_origin, tz="GMT")
+latitude <- ncvar_get(nc, "latitude")
+GPP <- ncvar_get(nc, "GPP")
+longitude <-  ncvar_get(nc, "longitude")
 
-Tair <- ncvar_get(nc, "Ta")
-GPP <- ncvar_get(nc, "GPP_LL")
-SW <-  ncvar_get(nc, "Fsd")
-
-i <- data.frame(date, GPP, Tair, SW)
-colnames(fname)<- c("date", "GPP", "Tair", "SW")
+"Data/OzFlux_dat/AU-Cpr_2011-2017_OzFlux_Flux.nc" <- data.frame(date, GPP, latitude, longitude)
+#fname <- data.frame(date, Tair, SW)
+colnames(fname)<- c("date", "GPP", "latitude", "longitude")
+#colnames(fname)<- c("date", "Tair", "SW")
 df$year <- year(date)
 df$month <- month(date)
 df$day <- yday(date)
 df$hour <- hour(date)
 
-df[i]}
-```
-attempt 2
-```{r}
+#yeet that file
+out_fname <- sprintf(".%s/%s_vals.csv", out_dir, site_name)
+  write.csv(df, file=out_fname, row.names = FALSE)
+out_fname
+}
+
+##```{r}
 # Declare data frame
 # Open all files
 # Loop over files
-df=NULL
-files= list.files('data/sites',pattern='*.nc',full.names=TRUE)
-for(i in seq_along(files)) {
-nc = nc_open(files[i])
 
-# Read the whole nc file and read the length of the varying dimension (here, the 3rd dimension, specifically time)
-t <- ncvar_get(nc, "time")
-time_origin <- strsplit(ncatt_get(nc, "time")$units, "days since ")[[1]][2]
-date <- as.POSIXct(t * 24*60*60,  origin=time_origin, tz="GMT")
-Tair <- ncvar_get(nc, "Ta")
-GPP <- ncvar_get(nc, "GPP_LL")
-SW <-  ncvar_get(nc, "Fsd")
-
-df <- data.frame(date, GPP, Tair, SW)
-colnames(fname)<- c("date", "GPP", "Tair", "SW")
-
-# Add the values from each file to a single data.frame
-rbind(df,data.frame(lw))->df
-}
 
 
 
 
 #ala data
-ala_temp <- read.csv("E\Data\ALA_w_temp.csv")
+ala_temp <- read.csv("./Data/BEES-TREES_ALA_data/ALA_w_temp.csv")
+ala_temp1 <- read.csv("./Data/BEES-TREES_ALA_data/BEES-TREES_ALA_data.csv")
 ala_s <- ala_temp %>%
-  select('Species','Latitude','Longitude','Temperature...annual.range..Bio07.') %>%
+  dplyr::select('Species','Latitude','Longitude','Temperature...annual.range..Bio07.') %>%
   dplyr::rename(
     'species' = 'Species' ,
     'latitude' = 'Latitude' ,
@@ -111,10 +131,291 @@ ala_s <- ala_temp %>%
     'temp_range' = 'Temperature...annual.range..Bio07.' ,
   )
 
+names(ala_temp)
 
 
+names(ala_temp1);
+fname
+latitude<-ncvar_get(nc_open(fname), "latitude")
+longitude<-ncvar_get(nc_open(fname), "longitude")
+ASM_coords<- data.frame(latitude, longitude) 
+  
+colnames(ASM_coords) <- c("latitude", "longitude")
+  ncvar
+  
+names(ala_temp1)
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+####RUN AS ADMIN OR THIS WON'T WORK
+Data Import
+```{r}
+
+#create directory for processed netCDF files
+getwd()
+out_dir <- "/Data/processed"
+if (!dir.exists(file.path(out_dir))) {
+  dir.create(file.path(out_dir))
+}
+
+#list all files in directory
+```
+####RUN AS ADMIN OR THIS WON'T WORK
+```{r}
+
+###########################################
+########For Alice Springs Mulga############
+###########################################
+
+ncFnames <- list.files("Data/OzFlux_dat/ASM",pattern="*.nc", full.names=TRUE)
+#names(nc$var)
+#fname
+
+#extract data from netCDF files and save as CSV
+getwd()
+for(fname in ncFnames){
+nc <- nc_open(fname)
+site_name <- substr(fname, 20,30)
+
+#get variables
+
+t <- ncvar_get(nc, "time")
+time_origin <- strsplit(ncatt_get(nc, "time")$units, "days since ")[[1]][2]
+date <- as.POSIXct(t * 24*60*60,  origin=time_origin, tz="GMT")
+Tair <- ncvar_get(nc, "Ta")
+GPP <- ncvar_get(nc, "GPP")
+SW <-  ncvar_get(nc, "Fsd")
+
+
+
+#assign variables
+
+
+df <- data.frame(date, GPP, Tair, SW)
+#df <- data.frame(date, Tair, SW)
+colnames(df)<- c("date", "GPP", "Tair", "SW")
+#colnames(df)<- c("date", "Tair", "SW")
+df$year <- NA
+df$year <- year(date)
+df$month <- month(date)
+df$day <- yday(date)
+df$hour <- hour(date)
+
+
+
+
+#yeet that file
+
+out_fname <- sprintf(".%s/%s_vals.csv", "/Data/processed", site_name)
+  write.csv(df, file=out_fname, row.names = FALSE)
+
+#delete the dataframe
+rm(df)
+site_name
+out_fname
+#rinse and repeat
+}
+
+ncFnames <- list.files("Data/OzFlux_dat/CUM",pattern="*.nc", full.names=TRUE)
+#names(nc$var)
+#fname
+
+
+
+###########################################
+########For Cumberland Plains##############
+###########################################
+
+#extract data from netCDF files and save as CSV
+
+for(fname in ncFnames){
+nc <- nc_open(fname)
+site_name <- substr(fname, 20,30)
+
+#get variables
+
+t <- ncvar_get(nc, "time")
+time_origin <- strsplit(ncatt_get(nc, "time")$units, "days since ")[[1]][2]
+date <- as.POSIXct(t * 24*60*60,  origin=time_origin, tz="GMT")
+Tair <- ncvar_get(nc, "Ta")
+GPP <- ncvar_get(nc, "GPP")
+SW <-  ncvar_get(nc, "Fsd")
+
+
+
+#assign variables
+
+
+df <- data.frame(date, GPP, Tair, SW)
+#df <- data.frame(date, Tair, SW)
+colnames(df)<- c("date", "GPP", "Tair", "SW")
+#colnames(df)<- c("date", "Tair", "SW")
+df$year <- NA
+df$year <- year(date)
+df$month <- month(date)
+df$day <- yday(date)
+df$hour <- hour(date)
+
+
+
+
+#yeet that file
+
+out_fname <- sprintf(".%s/%s_vals.csv", "/Data/processed", site_name)
+  write.csv(df, file=out_fname, row.names = FALSE)
+
+#delete the dataframe
+rm(df)
+#rinse and repeat
+}
+
+nc_close
+```
+
+
+
+
+
+###load new CSVs
+```{r}
+CSV_output_dir = "E:/File Storage/Documents/GitHub/BEES-TREES/Data/processed"
+Processed_CSVs <- list.files(CSV_output_dir, pattern="*vals.csv", full.names = T)
+site_list <- data.frame(sites=character(),filenames=character(),stringsAsFactors=FALSE)
+
+
+for(i in Processed_CSVs) {
+  new_filename <- substr(i, 60, 66)
+  assign(new_filename, read.csv(i, header=TRUE, sep=","))
+  site_code <- substr(new_filename,0,3)
+  site_list[nrow(site_list)+1,]=c(site_code, new_filename)
+}
+```
+
+```{r}
+#control F and replace this manually to re-import
+ASM <- merge(ASM2019,ASM2018,all=T)
+ASM <- merge(ASM,ASM2017,all=T)
+ASM <- merge(ASM,ASM2016,all=T)
+ASM <- merge(ASM,ASM2015,all=T)
+ASM <- merge(ASM,ASM2014,all=T)
+ASM <- merge(ASM,ASM2013,all=T)
+ASM <- merge(ASM,ASM2012,all=T)
+
+CUM <- merge(CUM2019,CUM2018,all=T)
+CUM <- merge(CUM,CUM2017,all=T)
+CUM <- merge(CUM,CUM2016,all=T)
+CUM <- merge(CUM,CUM2015,all=T)
+CUM <- merge(CUM,CUM2014,all=T)
+CUM <- merge(CUM,CUM2013,all=T)
+CUM <- merge(CUM,CUM2012,all=T)
+CUM <- merge(CUM,CUM2011,all=T)
+
+
+
+#broken
+
+#for(i in seq(nrow(site_list))) {
+# if(site_list$sites[i] != site_list$sites[i+1]){
+#    assign(site_list$sites[1], data.frame())
+#    }
+#  else {
+#  
+#  }
+#}
+```
+
+```{R}
+
+
+  
+  if(site_code == "TUM") {
+UMOL_TO_MOL = 0.000001
+MOL_C_TO_GRAMS_C = 12.
+SEC_2_HR = 3600.
+conv <- UMOL_TO_MOL * MOL_C_TO_GRAMS_C * SEC_2_HR
+
+OF_dat <- paste(as.name(new_filename)) %>%
+  <- data.frame();
+  mutate(day=as.Date(new_filename$date, format="%Y-%m-%d")) %>%
+  group_by(day) %>%               # group by the day column
+  summarise(GPP=sum(GPP * conv), Tair=max(Tair))   # calculate the SUM of all the photosynthesis
+                                  # that occurred on each day
+                                  # NB unit conversion
+
+  }
+site_list
+
+
+
+  
+  
+class(new_filename)
+new_filename
+names(m)
+site_code
+new_filename$date
+{new_filename} <- data.frame()
+list(site_list)
+as.name(site_code)
+as.name(site_list$sites[1])
+assign(site_list$sites[1], data.frame())
+paste(site_list[1])
+
+unique(site_list$sites)
+
+```
+
+
+```{r}
+#control F and change this
+WHR <- merge(WHR2019,WHR2018,all=T)
+WHR <- merge(WHR,WHR2017,all=T)
+WHR <- merge(WHR,WHR2016,all=T)
+WHR <- merge(WHR,WHR2015,all=T)
+WHR <- merge(WHR,WHR2014,all=T)
+WHR <- merge(WHR,WHR2013,all=T)
+WHR <- merge(WHR,WHR2012,all=T)
+WHR <- merge(WHR,WHR2011,all=T)
+
+ASM_1 <- crossing(ASM, site="ASM")
+#COW_1 <- crossing(COW, site="COW")
+CUM_1 <- crossing(CUM, site="CUM")
+#DAL_1 <- crossing(DAL, site="DAL")
+#DRY_1 <- crossing(DRY, site="DRY")
+#GIN_1 <- crossing(GIN, site="GIN")
+#GWW_1 <- crossing(GWW, site="GWW")
+#LIT_1 <- crossing(LIT, site="LIT")
+#STU_1 <- crossing(STU, site="STU")
+#TUM_1 <- crossing(TUM, site="TUM")
+#WHR_1 <- crossing(ASM, site="ASM")
+
+OF_dat <- merge(ASM_1,CUM_1,all=T)
+
+#OF_dat <- merge(ASM_1,COW_1,all=T)
+#OF_dat <- merge(OF_dat,CUM_1,all=T)
+#OF_dat <- merge(OF_dat,DAL_1,all=T)
+#OF_dat <- merge(OF_dat,DRY_1,all=T)
+#OF_dat <- merge(OF_dat,GIN_1,all=T)
+#OF_dat <- merge(OF_dat,LIT_1,all=T)
+#OF_dat <- merge(OF_dat,STU_1,all=T)
+#OF_dat <- merge(OF_dat,TUM_1,all=T)
+#OF_dat <- merge(OF_dat,WHR_1,all=T)
+
+write.csv(OF_dat, file="./Data/processed/OF_dat_compiled.csv",append=TRUE)
+
+```
+
+
 
 
 
@@ -125,25 +426,306 @@ ala_s <- ala_temp %>%
 Convert Data into Usable Format
 ```{r}
 
+OF_dat$syear<-as.character(OF_dat$year)
+syear<- data.frame(syear)
+syear <- syear[seq(1, nrow(syear),48),]
+
+
 # Convert GPP units
 UMOL_TO_MOL = 0.000001
 MOL_C_TO_GRAMS_C = 12.
-SEC_2_HR = 3600.
+SEC_2_HR = 1800.
 conv <- UMOL_TO_MOL * MOL_C_TO_GRAMS_C * SEC_2_HR # Note this is only for Tumba, others are 30 min
 
-df_day <- df %>%
-  mutate(day=as.Date(df$date, format="%Y-%m-%d")) %>%
-  group_by(day) %>%               # group by the day column
-  summarise(GPP=sum(GPP * conv), Tair=max(Tair))   # calculate the SUM of all the photosynthesis
-                                  # that occurred on each day
+OF_dat_day <- OF_dat %>%
+  mutate(day=as.Date(OF_dat$date, format="%Y-%m-%d"))%>%
+  group_by(day) %>% # group by the day column
+  summarise(GPP=sum(GPP * conv), Tair=max(Tair), site=first(site), year=first(year),month= first(month))
+  #mutate(year_s=sear)
+  # calculate the SUM of all the photosynthesis
+     # that occurred on each day
                                   # NB unit conversion
+  
+#remove outliers
+OF_subs<- subset(OF_dat_day, GPP>= 0 & GPP <= 10 & year<=2019)
+ASM<-subset(ASM,GPP>=-10)
+cum_sum<-subset(cum_sum, year<=2019)
+asm<-subset(asm,  year<=2019)
+splt <- split(OF_subs, OF_subs$site)
 
+cum <- splt$CUM 
+cum_sum <- cum%>%
+  group_by(year)%>%
+  summarise(Tmax=max(Tair), sum(GPP))
 
+asm <- splt$ASM
+asm_sum <- asm %>%
+  dplyr::group_by(year)%>%
+  summarise(Tmax=max(Tair), sum(GPP))
+
+```
+#
+```{r}
+
+clim_dat<-asm %>%  #OF_dat%>%
+  group_by(year)%>%
+  summarise(Tmax=max(Tair),Tmean=mean(Tair),Tmin=min(Tair), sum(GPP))
 
 
 
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+plot(OF_subs$Tair, OF_subs$GPP)
+```
+
+
+```{r}
+qt <- quantile(OF_dat$GPP, probs=0.95)
+
+#Find days where GPP above 95th percentile
+above <- which(OF_dat$GPP > qt)
+df_out <- data.frame(day=OF_dat$day[above], gpp=OF_dat$GPP[above],
+                     tair=OF_dat$Tair[above])
+df_out
+```
+
+
+```{r}
+# Figure out opts for all years
+print( c(mean(df_out$gpp), mean(df_out$tair), mean(OF_dat$Tair), sd(df_out$gpp), sd(df_out$tair), count) )
+```
+```{r}
+# difference in MAT and Topt
+print( c(mean(OF_dat_day$tair), mean(OF_dat_day$Tair)) )
+```
+```{r}
+plot(OF_subs$Tair, OF_subs$GPP)
+```
+
+```{r}
+
+# Figure out opts for each year
+df_year <- df_out %>%
+  mutate(year=format(df_out$day, format="%Y")) %>% #convert date to years
+  group_by(year) %>%               # group by the year column
+  summarise(gpp_mean=mean(gpp), gpp_sd=sd(gpp), tair_mean=mean(tair), tair_sd=sd(tair))
+df_year
+```
+
+
+```{r, fig.width=10, fig.height=5}
+#plot(OF_dat$year, OF_dat$tair_mean)
+OF_subs$month<- factor (OF_subs$month, levels =c("1","2","3","4","5","6","7","8","9","10","11","12"))
+
+ggplot(data=OF_subs) + aes(x=as.character(year), y=GPP)+xlab("Year") +
+  geom_boxplot(data=OF_subs, aes(x=as.character(year), y=GPP,fill=site), outlier.shape=NA)
+
+ggplot(data=OF_subs) + aes(x=as.character(year), y=GPP)+xlab("Month of Year") +
+  geom_boxplot(data=OF_subs, aes(x=month, y=GPP,fill=site), outlier.shape=NA) #+
+ 
+
+#min mean max climate graph
+
+ggplot() +
+  geom_line(data=clim_dat, aes(x=year,y=Tmax)) +
+  geom_line(data=clim_dat, aes(x=year,y=Tmean)) +
+  geom_line(data=clim_dat, aes(x=year,y=Tmin))
+
+```
+
+
+
+
+
+Get Topt ranges
+```{r}
+
+x <- cum$Tair
+y <- cum$GPP
+x_cum <- cum_pl$Tair
+y_cum <- cum_pl$GPP
+x_asm <- as_m$Tair
+y_asm <- as_m$GPP
+#fit <- lm(y ~ poly(x,2, raw=T))
+fit <- lm(y ~ x + I(x^2))
+summary(fit)
+
+
+preds = predict(fit, newdata = list(x), se = TRUE)
+
+
+# Compute error bands (2*SE)
+se_bands = cbind("upper" = preds$fit+2*preds$se.fit, 
+                 "lower" = preds$fit-2*preds$se.fit)
+
+ggplot() +
+  ggtitle("Topt plot for Cumberland Plains") + 
+  geom_point(data = cum, aes(x = Tair, y = GPP, colour=site), color='#00AFBB') +
+  geom_line(aes(x = cum$Tair, y = preds$fit), color = "#0000FF") +
+  geom_ribbon(aes(x = cum$Tair, 
+                  ymin = se_bands[,"lower"], 
+                  ymax = se_bands[,"upper"]), 
+              alpha = 0.3) 
+  
+  
+```
+
+identical to above but for ASM
+```{r, legend.position=NA}
+
+x <- ASM$Tair
+y <- ASM$GPP
+#x_cum <- cum_pl$Tair
+#y_cum <- cum_pl$GPP
+#x_ASM <- as_m$Tair
+#y_ASM <- as_m$GPP
+##fit <- lm(y ~ poly(x,2, raw=T))
+fit <- lm(y ~ x + I(x^2))
+summary(fit)
+
+
+preds = predict(fit, newdata = list(x), se = TRUE)
+
+
+# Compute error bands (2*SE)
+se_bands = cbind("upper" = preds$fit+2*preds$se.fit, 
+                 "lower" = preds$fit-2*preds$se.fit)
+
+ggplot(data=ASM) +
+  ggtitle("Topt plot for Alice Springs - Mulga") +
+  geom_jitter(data = ASM, aes(x = Tair, y = GPP))+
+  geom_line(aes(x = ASM$Tair, y = preds$fit), color = "#0000FF") +
+  geom_ribbon(aes(x = ASM$Tair, 
+                  ymin = se_bands[,"lower"], 
+                  ymax = se_bands[,"upper"]), 
+              alpha = 0.3) 
+  Topt_max
+  
+```
+
+
+```{r}
+# Get Topt (max of curve)
+Topt_max <- asm$Tair[which.max(preds$fit)]
+Topt_max
+```
+
+```{r}
+fit1 <- lm(y~x)
+fit2 <- lm(y~poly(x,2,raw=T))
+fit3 <- lm(y~poly(x,3,raw=T))
+print(anova(fit1,fit2,fit3))
+```
+
+```{r}
+df_day<-cum
+df_day<-asm
+above <- which(df_day$Tair > 30)
+df_above <- data.frame(day=df_day$day[above], gpp=df_day$GPP[above],
+                     tair=df_day$Tair[above])
+```
+
+
+```{r}
+gpp_max <- max(df_above$gpp)
+plot(df_above$tair, df_above$gpp/gpp_max)
+```
+
+```{r}
+df_max <- df_above %>% 
+           mutate( x_bins = cut( tair, breaks = seq(30, 42.5, by=0.5) )) %>% 
+           group_by(x_bins)  %>% 
+           summarise(max_gpp = max(gpp))
+```
+
+
+```{r}
+xrange <- seq(30.25, by=0.5, length.out=length(df_max$max_gpp))
+plot(xrange, df_max$max_gpp/gpp_max)
+```
+
+
+```{r}
+library("nls.multstart")
+x <- seq(30,42,length.out = 100)
+eps <- rnorm(100, mean=0, sd=0.1)
+y <- SSfpl(x, A=1, B=0.4, xmid=37, scal=1.5)+eps
+plot(y~x); abline(v=37)
+fit <- nls.multstart::nls_multstart(
+  y~SSfpl(input = x, A = A, B=B, xmid = xmid, scal = scal),
+          start_lower=c(A=0.5,B=0,xmid=30,scal=0.5),
+          start_upper=c(A=1,B=0.5,xmid=42,scal=10),
+  iter=100, supp_errors = 'Y')
+summary(fit)
+plot(y~x)
+points(predict(fit)~x,col='navy',pch=20)
+abline(v=coef(fit)['xmid'],col='red',lwd=2)
+```
+
+```{r}
+T50 <- coef(fit)['xmid']
+T50
+```
+```{r}
+T_safety_margin <- T50 - Topt_max
+T_safety_margin
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -173,20 +755,103 @@ variable.names(Sp_Rng)
 field data
 ```{r}
 ALA_data_raw <- read.csv("data/BEES-TREES_ALA_data/BEES-TREES_ALA_data.csv",header=TRUE)
-ALA_data_ref <- ALA_data %>%
-  select('Species', 'Latitude', 'Longitude')
+ALA_data_ref <- ALA_data_raw %>%
+  dplyr::select('Species', 'Latitude', 'Longitude')
 ala_subs <- ALA_data_ref[sample(NROW(ALA_data_ref), 49999),]
 
 #sp range
-temp <- ALA_data %>%
-  group_by(Species)%>%
-  range(Latitude)
+#temp <- ALA_data_raw %>%
+#  group_by(Species)%>%
+#  summarise(latitude= range(Latitude),na.rm=T)
 
+
+allah <- data.frame(ala_temp1) 
+allah <-  dplyr::select(ala_temp1, "Species", "Temperature...annual.max.mean",
+         "Temperature...annual.mean..Bio01.",
+         "Latitude" ,"Longitude",
+         "Gross.Primary.Productivity..2012.03.13.",
+         "Distance...to.coast",
+         "Humidity...month.max.relative",
+         "Precipitation...annual.mean")
+
+Trng<-  dplyr::select(ala_temp, "Temperature...annual.range..Bio07.","Species") %>%
+  dplyr::rename("Trng"="Temperature...annual.range..Bio07.",
+                "species"="Species")%>%
+  group_by(species)%>%
+  summarise(Tnrg=max(Trng))
+Trng<- na.omit(Trng)
+awTrng<- merge.data.frame(ala_sp,Trng,  by.y="species")
+awTrng <- rename(awTnrg, "Trng"="Tnrg")
+
+allah_<- dplyr::rename(allah, "species"="Species", "Tmax"="Temperature...annual.max.mean",
+                "Tmean"="Temperature...annual.mean..Bio01.",
+                "latitude"="Latitude" ,
+                "longitude"="Longitude",
+                "GPP"="Gross.Primary.Productivity..2012.03.13.",
+                "D2C"="Distance...to.coast",
+                "humidity"="Humidity...month.max.relative",
+                "precipitation"="Precipitation...annual.mean")
+ala_sp<-merge.data.frame(allah,Trng,ALL=T)
+ala_sp <- ala_sp %>%
+  group_by(species) %>%
+  summarize(Tmax=mean(Tmax), Tmean=mean(Tmean), latitude=mean(latitude), longitude=mean(longitude), GPP=mean(GPP),GPP_max=max(GPP), humidity=mean(humidity),precipitation=mean(precipitation))
+
+
+##quick look at the data to see what's up
+summary(ala_sp)
+plot(ala_sp$Tmax~ala_sp$GPP)
+plot(awTrng$GPP~awTrng$Tnrg)
 
 ```
 
 field tOpt
 ```{r}
+as_cull <- na.omit(ala_sp)
+y<-as_cull$GPP
+x<-as_cull$Tmax
+
+
+library(caret)
+model<-lm(Tmax~GPP+I(GPP^2), data=ala_sp)
+predictions<-model %>% predict(ala_sp)
+data.frame(
+  RMSE=RMSE(predictions, ala_sp$GPP),
+  R2=R2(predictions, ala_sp$GPP)
+)
+
+#x<-ala_sp$Tair
+#y<-ala_sp$GPP
+#fit<- lm(y~x+I(x^2))
+#preds = predict(fit, newdata=list(x), se=TRUE)
+#se_bands = cbind("upper"=preds$fit+2*preds$se.fit, "lower"=preds$fit-2*preds$se.fit)
+
+
+###GPP plots against Latitude and Precipitation
+ggplot(data=ala_sp, aes(x=precipitation,y=GPP, colour=Tmax)) + 
+  geom_point() +
+  ggtitle("GPP against Precipitation")+
+  stat_smooth(method="lm", formula = y~x, color="red",alpha=0.3)
+
+ggplot(data=ala_sp, aes(x=abs(latitude),y=GPP, colour=Tmax)) + 
+  geom_point() +
+  ggtitle("GPP against Latitude", "R^2 = 0.31")+
+  stat_smooth(method="lm", formula = y~x+I(x^2), color="red",alpha=0.4)
+
+write.csv(ala_sp, file="./ALA_sp.csv", row.names = F)
+
+
+##Australia-wide spatial plots
+ggplot(data=world) +
+  geom_sf(data=world) + 
+  coord_sf(xlim=c(110,155),ylim=c(-45,-10), expand=FALSE) +
+  geom_point(data=ala_temp, aes(x=Longitude, y=Latitude, color=Species)) + 
+  theme(legend.position = "none")
+
+ggplot(data=world) +
+  geom_sf(data=world) +
+  coord_sf(xlim=c(110,155),ylim=c(-45,-10)) +
+  geom_point(data=ala_s, aes(x=Longitude, y=Latitude, colour=GPP))
+             
 
 ```
 
@@ -195,3 +860,4 @@ field tOpt
 
 
 combine approaches
+

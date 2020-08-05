@@ -1,0 +1,191 @@
+####
+## Download all occurances of Eucs from ALA and get the matching MAP and MAT
+## Then remake Fig 1 in Hughes et al. (1996) Climatic Range Sizes of
+## Eucalyptus Species in Relation to Future Climate Change. Global Ecology and
+## Biogeography Letters, 5, 23-29
+##
+## Date: 15/11/2017
+## Author: Martin De Kauwe
+####
+```{r}
+library(ALA4R)
+library(dplyr)
+```
+^works
+
+
+
+# for every species, get range of MAT
+```{r}
+get_MAT_range <- function(species_name, sep){
+  counts <- sep[,species_name]
+
+  # Exclude single occurrence records
+  mats <- sep$worldClimTemperatureAnnualMean[which(counts > 1)]
+  mats <- mats[is.finite(mats)]
+
+  if (length(mats)) {
+    # Exclude values where the MAT min is 0, not sure what that implies
+    if (min(mats, na.rm=TRUE) < 0.001) {
+      NA
+    } else {
+      max(mats, na.rm=TRUE) - min(mats, na.rm=TRUE)
+      if (max(mats, na.rm=TRUE) - min(mats, na.rm=TRUE) >= 10.) {
+        print(c(trimws(species_name), sum(counts), min(mats, na.rm=TRUE), max(mats, na.rm=TRUE)))
+      }
+    }
+  } else {
+    NA
+  }
+}
+```
+^works
+
+
+
+
+# Get all the counts of Eucs occurrences
+```{r}
+ss = sites_by_species("genus:Eucalyptus",
+                      wkt="POLYGON((110 -45,155 -45,155 -10,110 -10,110 -45))",
+                      gridsize=0.5)
+
+ss <- occurrences('genus:Eucalyptus',
+                  wkt="POLYGON((110 -45,155 -45,155 -10,110 -10,110 -45))",
+                  fq='-basis_of_record:PreservedSpecimen',
+                  fields=c('scientificName', 'longitude', 'latitude', 'el862'),
+                  download_reason_id=7)$data
+```
+^ Error on line 49. ALA server gives back 304 error code
+
+```{r}
+#insert new ALA data
+ala_temp <- read.csv("./ala_w_temp.csv")
+ala_s <- ala_temp %>%
+  select('Species','Latitude','Longitude','Temperature...annual.range..Bio07.') %>%
+  dplyr::rename(
+    'species' = 'Species' ,
+    'latitude' = 'Latitude' ,
+    'longitude' = 'Longitude', 
+    'temp_range' = 'Temperature...annual.range..Bio07.'
+
+
+#randomly sample to be under 50,000 limit of intersect_points function on line 87
+
+ss<-ala_s[sample(NROW(ala_s), 49999),];
+
+ss <- mutate(ala_subs, longitude = 'longitude' + 0.25,
+             latitude = 'latitude' + 0.25)
+```
+^ line 63 I put in my own dataset
+
+
+
+# Get bioclimatic stuff
+```{r}
+env_layers = c("WorldClim: Temperature - annual mean",
+               "WorldClim: Precipitation - annual")
+ep = intersect_points(ss[, c("latitude","longitude")], env_layers)
+ep$worldClimTemperatureAnnualMean = ep$worldClimTemperatureAnnualMean / 10.0
+
+# For each species figure out the temperature range it occurs in
+sep <- cbind(ss, ep)
+species_names <- grep("eucalyptus", names(sep), value=TRUE)
+temp_range <- sapply(ss$species, get_MAT_range, sep=" ")
+
+# Exclude single point data, where there is no range, presumably botanical gardens
+temp_range <- temp_range[is.finite(temp_range),]
+temp_range <- temp_range[temp_range > 0.0]
+```
+^line 96 gives error because temp_range is list of 0
+
+```{r}
+
+#two attempts to put the temp range colums into list format, neither work properly
+temp_range <- split(temp_range, seq(nrow(ss$species)))
+temp_range <- as.list(as.data.frame(t(ss)))
+
+
+```
+
+```{r}
+
+
+
+tmax <- getData("worldclim",var="tmax",res=10)
+gain(tmax)=0.1
+
+lats <- c(9.093028 , 9.396111, 9.161417)
+lons <- c(-11.7235, -11.72975, -11.709417)
+coords <- data.frame(x=lons,y=lats)
+points <- SpatialPoints(coords)
+values <- extract(tmax,points)
+ss <- cbind.data.frame(coordinates(points),values)
+ss$max <-apply(X=df, MARGIN=1, FUN=max)
+ss
+
+library(sp)
+library(raster)
+tmax <- getData("worldclim",var="tmax",res=10)
+gain(tmax)=0.1
+
+lats <- c(9.093028 , 9.396111, 9.161417)
+lons <- c(-11.7235, -11.72975, -11.709417)
+coords <- data.frame(x=lons,y=lats)
+points <- SpatialPoints(coords, proj4string = tmax@crs)
+values <- extract(tmax,points)
+df <- cbind.data.frame(coordinates(points),values)
+df$max <-apply(X=df, MARGIN=1, FUN=max)
+
+```
+
+```{r}
+colnames(ALA_data)
+ALA_clim <- ALA_data %>%
+  dplyr::select('Species','Latitude','Longitude','Temperature...annual.mean..Bio01.','Fraction.of.Photosynthetically.Active.Radiation..fPAR.','Temperature...annual.max.mean','Gross.Primary.Productivity..2012.03.13.','Evaporation...average','Distance...to.coast','Elevation.') %>%
+  dplyr::rename(
+    'GPP' ='Gross.Primary.Productivity..2012.03.13.',
+    'annual_Ta_max' = 'Temperature...annual.max.mean',
+    'fPAR' = 'Fraction.of.Photosynthetically.Active.Radiation..fPAR.',
+    'evaporation' = 'Evaporation...average',
+    'distance_to_coast' = 'Distance...to.coast',
+    'annual_Ta' = 'Temperature...annual.mean..Bio01.',
+    'elevation' = 'Elevation.'
+  )
+```
+
+
+
+
+
+
+
+
+# Figure out the histogram
+```{r}
+bins <- seq(1, 11, by=1)
+bin_count <- vector(length=length(bins))
+for (b in 1:length(bins)) {
+  if (b == 1) {
+    bin_count[b] <- length(df[df <= 1.0])
+  } else if (b==length(bins)) {
+    bin_count[b] <- length(df[df > bins[b-1]])
+  } else {
+    bin_count[b] <- length(df[(df > bins[b-1]) &
+                                      (df <= bins[b])])
+  }
+}
+
+total <- sum(bin_count)
+bin_count <- bin_count / total * 100.
+
+pdf("Hughes_figure_ALA.pdf", width=9, height=6)
+names(bin_count) <- c("<1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8",
+                      "8-9", "9-10", ">10")
+xlab <- expression("Mean annual temperature range " ( degree~C))
+ylab <- "% Species"
+barplot(bin_count, xlab=xlab, ylab=ylab)
+
+```
+^ broken, gives either error because of temp_range list being list of zero, message saying "null device 1"
+
